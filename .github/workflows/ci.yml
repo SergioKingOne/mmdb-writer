@@ -40,7 +40,7 @@ jobs:
     name: doc
     runs-on: ubuntu-latest
     env:
-      RUSTDOCFLAGS: "-D warnings --cfg docsrs"
+      RUSTDOCFLAGS: "-D warnings"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
@@ -86,6 +86,9 @@ jobs:
   semver:
     name: semver-checks
     runs-on: ubuntu-latest
+    # No-op until the crate has a published baseline on crates.io to compare against.
+    # Remove `continue-on-error` after the first release so breaking changes fail CI.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: obi1kenobi/cargo-semver-checks-action@v2

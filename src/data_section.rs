@@ -403,7 +403,7 @@ mod tests {
     fn control_byte_size_class_boundaries() {
         // Size 28 fits inline; size 29 spills to the 1-byte extension (delta = 0).
         let s28 = "a".repeat(28);
-        assert_eq!(encode(&Value::String(s28))[0], 0x40 | 28);
+        assert_eq!(encode(&Value::String(s28))[0], 0x40 | 0x1c); // 0x1c = 28
         let s29 = "a".repeat(29);
         let out = encode(&Value::String(s29));
         assert_eq!(out[0], 0x40 | 0x1d);

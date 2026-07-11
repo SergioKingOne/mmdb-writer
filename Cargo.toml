@@ -47,7 +47,6 @@ required-features = ["serde"]
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
 
 [lints.rust]
 unsafe_code = "forbid"
