@@ -1,0 +1,65 @@
+[package]
+name = "mmdb-writer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Write MaxMind DB (.mmdb) files: build IP-to-data lookup databases that any MaxMind-compatible reader can consume."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/SergioKingOne/mmdb-writer"
+documentation = "https://docs.rs/mmdb-writer"
+readme = "README.md"
+keywords = ["maxmind", "mmdb", "geoip", "ip", "database"]
+categories = ["encoding", "network-programming", "database-implementations"]
+include = [
+    "src/**/*.rs",
+    "examples/**/*.rs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+]
+
+[dependencies]
+ipnet = "2.11"
+thiserror = "2"
+bon = "3"
+serde = { version = "1", optional = true, default-features = false, features = ["std"] }
+maxminddb = { version = "0.29", optional = true }
+
+[dev-dependencies]
+maxminddb = "0.29"
+serde = { version = "1", features = ["derive"] }
+proptest = "1"
+
+[features]
+default = ["serde"]
+# Accept any `serde::Serialize` value via `Writer::insert`, and derive
+# `Serialize`/`Deserialize` for the public `Value` type. Also forwards serde
+# support to the re-exported `ipnet` types.
+serde = ["dep:serde", "ipnet/serde"]
+# Load and extend an existing `.mmdb` file with `Writer::load` (pulls in the
+# `maxminddb` reader). Implies `serde`.
+load = ["dep:maxminddb", "serde"]
+
+[[example]]
+name = "serde_structs"
+required-features = ["serde"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# `Value::Map` vs the `mmdb_writer::value` module, `WriterBuilder` next to
+# `Writer`, etc. — repetition here reads naturally.
+module_name_repetitions = "allow"
+# Product names (MaxMind, GeoIP2, GeoLite2) are not code and should not be
+# wrapped in backticks.
+doc_markdown = "allow"
