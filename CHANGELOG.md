@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.0](https://github.com/SergioKingOne/mmdb-writer/releases/tag/v0.1.0) - 2026-07-11
+
+### Fixed
+
+- satisfy newer toolchains and unblock CI
+
+### Other
+
+- run release-plz in release-pr-only mode until publishing is enabled
+- pin release-plz action to v0.5
+- Initial implementation of mmdb-writer
+
 ### Added
 
 - Initial release: write MaxMind DB (`.mmdb`) files from `(network, value)` pairs.
