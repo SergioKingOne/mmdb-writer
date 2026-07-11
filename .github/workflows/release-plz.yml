@@ -18,8 +18,13 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
+      # Only prepares the release PR (version bump + changelog). Publishing to crates.io is
+      # intentionally not enabled yet. To enable it, add the `CARGO_REGISTRY_TOKEN` secret
+      # and change `command` to `release-pr` plus a separate `release` run (or remove it to
+      # run both).
       - name: Run release-plz
         uses: release-plz/action@v0.5
+        with:
+          command: release-pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
