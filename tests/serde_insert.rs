@@ -95,6 +95,100 @@ fn unit_enum_variants_serialize_as_strings() {
 }
 
 #[test]
+fn u8_and_some_fields_round_trip() {
+    // u8 widens to the MMDB uint16 type; Some(x) must serialize as x, not be dropped.
+    #[derive(Serialize)]
+    struct Narrow {
+        small: u8,
+        opt: Option<u32>,
+    }
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct NarrowOut {
+        small: u16,
+        opt: u32,
+    }
+    let mut w = Writer::new("Serde-Test");
+    w.insert(
+        net("192.0.2.0/24"),
+        &Narrow {
+            small: 255,
+            opt: Some(7),
+        },
+    )
+    .unwrap();
+    let bytes = w.to_bytes().unwrap();
+    assert_eq!(
+        lookup::<NarrowOut>(&bytes, "192.0.2.1"),
+        Some(NarrowOut { small: 255, opt: 7 })
+    );
+}
+
+/// Exercises every serde shape the serializer supports in one record: narrow signed ints,
+/// char, newtype structs, tuples, tuple structs, and all three non-unit enum variant forms.
+///
+/// Verification decodes into `serde_json::Value` (the reader's derive-based deserializer
+/// cannot reconstruct Rust-side newtypes/enums, but the *written bytes* must follow serde's
+/// canonical data model: newtypes transparent, tuples as arrays, enums externally tagged).
+#[test]
+fn full_serde_type_surface_round_trips() {
+    #[derive(Serialize)]
+    struct Meters(u32); // newtype struct
+
+    #[derive(Serialize)]
+    struct Pair(u16, String); // tuple struct
+
+    #[derive(Serialize)]
+    enum Shape {
+        Point(u32),              // newtype variant
+        Line(u32, u32),          // tuple variant
+        Rect { w: u32, h: u32 }, // struct variant
+    }
+
+    #[derive(Serialize)]
+    struct Surface {
+        tiny: i8,
+        small: i16,
+        letter: char,
+        depth: Meters,
+        pair: Pair,
+        tuple: (u32, String),
+        newtype_variant: Shape,
+        tuple_variant: Shape,
+        struct_variant: Shape,
+    }
+
+    let record = Surface {
+        tiny: -5,
+        small: -300,
+        letter: 'x',
+        depth: Meters(42),
+        pair: Pair(7, "seven".into()),
+        tuple: (1, "one".into()),
+        newtype_variant: Shape::Point(9),
+        tuple_variant: Shape::Line(3, 4),
+        struct_variant: Shape::Rect { w: 10, h: 20 },
+    };
+
+    let mut w = Writer::new("Serde-Surface");
+    w.insert(net("192.0.2.0/24"), &record).unwrap();
+    let bytes = w.to_bytes().unwrap();
+
+    let got: serde_json::Value = lookup(&bytes, "192.0.2.1").unwrap();
+    let want = serde_json::json!({
+        "tiny": -5,
+        "small": -300,
+        "letter": "x",
+        "depth": 42,                                  // newtype struct is transparent
+        "pair": [7, "seven"],                        // tuple struct → array
+        "tuple": [1, "one"],                         // tuple → array
+        "newtype_variant": {"Point": 9},             // externally tagged
+        "tuple_variant": {"Line": [3, 4]},
+        "struct_variant": {"Rect": {"w": 10, "h": 20}},
+    });
+    assert_eq!(got, want);
+}
+
+#[test]
 fn i64_is_rejected() {
     #[derive(Serialize)]
     struct HasI64 {

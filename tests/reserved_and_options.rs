@@ -73,6 +73,38 @@ fn non_reserved_insert_works_with_exclusion_enabled() {
 }
 
 #[test]
+fn metadata_pointer_option_changes_the_bytes() {
+    // Identical databases except for the metadata-pointer option. The metadata contains a
+    // dedupable repeated string ("en" appears as both a language and a description key), so
+    // pointers-enabled output must be smaller than (and different from) pointers-disabled.
+    let build = |pointers: MetadataPointers| {
+        let mut w = Writer::builder("Ptr-Diff")
+            .languages(["en"])
+            .description(&[("en", "database")])
+            .metadata_pointers(pointers)
+            .build_epoch(std::time::SystemTime::UNIX_EPOCH)
+            .build();
+        w.insert_value(net("10.0.0.0/24"), Value::from(1_u32))
+            .unwrap();
+        w.to_bytes().unwrap()
+    };
+    let with_pointers = build(MetadataPointers::Enabled);
+    let without_pointers = build(MetadataPointers::Disabled);
+    assert!(
+        without_pointers.len() > with_pointers.len(),
+        "pointer-free metadata must be strictly larger ({} vs {})",
+        without_pointers.len(),
+        with_pointers.len()
+    );
+    // Both are valid databases with identical metadata content.
+    for bytes in [&with_pointers, &without_pointers] {
+        let r = reader(bytes);
+        assert_eq!(r.metadata().database_type, "Ptr-Diff");
+        assert_eq!(r.metadata().description.get("en").unwrap(), "database");
+    }
+}
+
+#[test]
 fn metadata_without_pointers_is_readable() {
     let mut w = Writer::builder("Meta-No-Pointers")
         .metadata_pointers(MetadataPointers::Disabled)

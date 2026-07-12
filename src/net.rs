@@ -237,4 +237,44 @@ mod tests {
         .unwrap();
         assert_eq!(nets, vec!["2001:db8::/120".parse().unwrap()]);
     }
+
+    #[test]
+    fn ipv6_single_address_range() {
+        let ip: IpAddr = "2001:db8::7".parse().unwrap();
+        assert_eq!(
+            range_to_networks(ip, ip).unwrap(),
+            vec!["2001:db8::7/128".parse().unwrap()]
+        );
+    }
+
+    #[test]
+    fn ipv6_reversed_range_errors() {
+        assert!(
+            range_to_networks(
+                "2001:db8::2".parse().unwrap(),
+                "2001:db8::1".parse().unwrap()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn whole_ipv6_space() {
+        let nets = range_to_networks(
+            "::".parse().unwrap(),
+            "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff".parse().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(nets, vec!["::/0".parse().unwrap()]);
+    }
+
+    #[test]
+    fn zero_start_partial_range_is_not_whole_space() {
+        // Starts at 0.0.0.0 but does not reach the top: must NOT shortcut to /0.
+        let nets = range_to_networks(v4("0.0.0.0"), v4("0.0.0.7")).unwrap();
+        assert_eq!(nets, vec!["0.0.0.0/29".parse().unwrap()]);
+        // Ends at the top but does not start at 0: also not /0.
+        let nets = range_to_networks(v4("255.255.255.248"), v4("255.255.255.255")).unwrap();
+        assert_eq!(nets, vec!["255.255.255.248/29".parse().unwrap()]);
+    }
 }

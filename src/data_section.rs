@@ -283,26 +283,16 @@ fn encode_uint_trimmed(buf: &mut Vec<u8>, value: u128, max_bytes: usize) -> usiz
     slice.len() - leading_zeros
 }
 
-/// Trim a signed 32-bit value to its minimal two's-complement big-endian representation.
-/// Returns the number of bytes written. Zero writes nothing (size = 0 in the control byte).
+/// Encode a signed 32-bit value the way readers decode it: as its unsigned two's-complement
+/// bit pattern with leading **zero** bytes stripped. Returns the number of bytes written.
+///
+/// Readers reconstruct int32 by zero-extending the payload to 4 bytes and reinterpreting as
+/// signed (see e.g. the official Python reader's `_decode_int32`), so negative values must
+/// always occupy the full 4 bytes — only high zero bytes may be trimmed. Matches the Go
+/// writer's `Int32.WriteTo`.
 fn encode_i32_trimmed(buf: &mut Vec<u8>, value: i32) -> usize {
-    if value == 0 {
-        return 0;
-    }
-    let full = value.to_be_bytes();
-    let pad = if value < 0 { 0xFF_u8 } else { 0 };
-    let mut start = 0;
-    while start + 1 < full.len() && full[start] == pad {
-        // Keep at least one byte whose sign bit agrees with the value's sign.
-        let next_msb_set = full[start + 1] & 0x80 != 0;
-        let would_flip_sign = (value < 0) ^ next_msb_set;
-        if would_flip_sign {
-            break;
-        }
-        start += 1;
-    }
-    buf.extend_from_slice(&full[start..]);
-    full.len() - start
+    #[allow(clippy::cast_sign_loss)]
+    encode_uint_trimmed(buf, u128::from(value as u32), 4)
 }
 
 /// Byte length of the type-1 pointer encoding for `offset`. Mirrors the size classes in
@@ -391,12 +381,33 @@ mod tests {
     }
 
     #[test]
-    fn int32_minimal_twos_complement() {
+    fn int32_wire_format() {
+        // Positive values: leading zero bytes trimmed (readers zero-extend back).
         assert_eq!(encode(&Value::I32(0)), vec![0x00, 0x01]); // size 0
-        assert_eq!(encode(&Value::I32(-1)), vec![0x01, 0x01, 0xFF]); // one byte 0xFF
-        assert_eq!(encode(&Value::I32(-256)), vec![0x02, 0x01, 0xFF, 0x00]);
-        // 128 needs a leading zero byte so the sign bit stays positive.
-        assert_eq!(encode(&Value::I32(128)), vec![0x02, 0x01, 0x00, 0x80]);
+        assert_eq!(encode(&Value::I32(1)), vec![0x01, 0x01, 0x01]);
+        assert_eq!(encode(&Value::I32(128)), vec![0x01, 0x01, 0x80]);
+        assert_eq!(
+            encode(&Value::I32(i32::MAX)),
+            vec![0x04, 0x01, 0x7F, 0xFF, 0xFF, 0xFF]
+        );
+        // Negative values must occupy all 4 bytes: readers zero-extend short payloads, so a
+        // trimmed negative would decode as a positive number.
+        assert_eq!(
+            encode(&Value::I32(-1)),
+            vec![0x04, 0x01, 0xFF, 0xFF, 0xFF, 0xFF]
+        );
+        assert_eq!(
+            encode(&Value::I32(-5)),
+            vec![0x04, 0x01, 0xFF, 0xFF, 0xFF, 0xFB]
+        );
+        assert_eq!(
+            encode(&Value::I32(-256)),
+            vec![0x04, 0x01, 0xFF, 0xFF, 0xFF, 0x00]
+        );
+        assert_eq!(
+            encode(&Value::I32(i32::MIN)),
+            vec![0x04, 0x01, 0x80, 0x00, 0x00, 0x00]
+        );
     }
 
     #[test]

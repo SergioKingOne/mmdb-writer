@@ -2,4 +2,4 @@
 /Cargo.lock
 *.mmdb
 .DS_Store
-/mutants.out*
+/mutants*.out*
