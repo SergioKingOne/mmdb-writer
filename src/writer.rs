@@ -104,8 +104,19 @@ impl Writer {
         /// Locales the descriptions cover. Defaults to `["en"]`.
         #[builder(default = default_languages(), with = |langs: impl IntoIterator<Item: Into<String>>| langs.into_iter().map(Into::into).collect())]
         languages: Vec<String>,
-        /// Per-language description strings (language code → text). Defaults to empty.
-        #[builder(default)]
+        /// Per-language description strings as `(language code, text)` pairs. Defaults to
+        /// empty.
+        ///
+        /// ```
+        /// # use mmdb_writer::Writer;
+        /// let w = Writer::builder("DB")
+        ///     .description(&[("en", "An example database"), ("de", "Eine Beispieldatenbank")])
+        ///     .build();
+        /// ```
+        #[builder(default, with = |entries: &[(&str, &str)]| entries
+            .iter()
+            .map(|(lang, text)| ((*lang).to_owned(), (*text).to_owned()))
+            .collect())]
         description: BTreeMap<String, String>,
         /// IP version of the database. Defaults to [`IpVersion::V6`].
         #[builder(default)]

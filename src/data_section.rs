@@ -444,6 +444,58 @@ mod tests {
     }
 
     #[test]
+    fn len_tracks_bytes_written() {
+        let mut section = DataSection::new();
+        assert_eq!(section.len(), 0);
+        section.push(&Value::String("hello".into()));
+        let len = section.len();
+        assert_eq!(len, 6); // control byte + 5 payload bytes
+        assert_eq!(section.into_bytes().len(), len);
+    }
+
+    #[test]
+    fn two_byte_size_extension_upper_boundary() {
+        // 65_820 is the largest 2-byte-extension size (delta = 0xFFFF); 65_821 is the first
+        // 3-byte-extension size (delta = 0). An off-by-one here corrupts every large value.
+        let out = encode(&Value::String("a".repeat(65_820)));
+        assert_eq!(out[0], 0x40 | 0x1e);
+        assert_eq!(&out[1..3], &[0xFF, 0xFF]);
+        let out = encode(&Value::String("a".repeat(65_821)));
+        assert_eq!(out[0], 0x40 | 31);
+        assert_eq!(&out[1..4], &[0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn equal_size_values_are_re_emitted_inline_not_pointered() {
+        // A cached 2-byte value equals the 2-byte pointer cost; the tie goes to inline
+        // (matching Go's strictly-greater size gate).
+        let v = Value::array([Value::U16(1), Value::U16(1)]);
+        assert_eq!(encode(&v), vec![0x02, 0x04, 0xA1, 0x01, 0xA1, 0x01]);
+    }
+
+    #[test]
+    fn without_pointers_never_emits_pointers() {
+        // The same repeated large string: the default section emits a pointer for the second
+        // occurrence, the no-pointer section re-emits it inline.
+        let big = Value::String("x".repeat(50));
+        let v = Value::array([big.clone(), big]);
+
+        let mut plain = DataSection::new();
+        plain.push(&v);
+        let mut no_ptr = DataSection::without_pointers();
+        no_ptr.push(&v);
+
+        let plain_bytes = plain.into_bytes();
+        let no_ptr_bytes = no_ptr.into_bytes();
+        assert!(no_ptr_bytes.len() > plain_bytes.len());
+        // No control byte in the no-pointer output has the pointer type tag. Both string
+        // headers are at known positions: array hdr (2) + str hdr (2) + payload (50) each.
+        assert_eq!(no_ptr_bytes.len(), 2 + 2 * 52);
+        assert_eq!(no_ptr_bytes[2] >> 5, 2); // first element: string tag
+        assert_eq!(no_ptr_bytes[54] >> 5, 2); // second element: string again, not pointer
+    }
+
+    #[test]
     fn pointer_size_classes() {
         assert_eq!(pointer_bytes(0), 2);
         assert_eq!(pointer_bytes(2_047), 2);
@@ -452,5 +504,30 @@ mod tests {
         assert_eq!(pointer_bytes(526_336), 4);
         assert_eq!(pointer_bytes(134_744_063), 4);
         assert_eq!(pointer_bytes(134_744_064), 5);
+    }
+
+    /// Byte-exact spec encodings (§3.5.1) for every pointer size class, including both sides
+    /// of each class boundary. Decoding: class 0 = raw 11 bits; class 1 = value + 2048;
+    /// class 2 = value + 526336; class 3 = raw 4-byte offset.
+    #[test]
+    fn pointer_encodings_for_all_size_classes() {
+        let encode_ptr = |offset: DataOffset| {
+            let mut s = DataSection::new();
+            s.write_pointer(offset);
+            s.bytes
+        };
+        // Class 0 (2 bytes): 001_00vvv + 1 byte.
+        assert_eq!(encode_ptr(0), vec![0x20, 0x00]);
+        assert_eq!(encode_ptr(100), vec![0x20, 0x64]);
+        assert_eq!(encode_ptr(2_047), vec![0x27, 0xFF]);
+        // Class 1 (3 bytes): stored value = offset - 2048.
+        assert_eq!(encode_ptr(2_048), vec![0x28, 0x00, 0x00]);
+        assert_eq!(encode_ptr(526_335), vec![0x2F, 0xFF, 0xFF]);
+        // Class 2 (4 bytes): stored value = offset - 526336.
+        assert_eq!(encode_ptr(526_336), vec![0x30, 0x00, 0x00, 0x00]);
+        assert_eq!(encode_ptr(134_744_063), vec![0x37, 0xFF, 0xFF, 0xFF]);
+        // Class 3 (5 bytes): raw 4-byte big-endian offset, control value bits unused.
+        assert_eq!(encode_ptr(134_744_064), vec![0x38, 0x08, 0x08, 0x08, 0x00]);
+        assert_eq!(encode_ptr(u32::MAX), vec![0x38, 0xFF, 0xFF, 0xFF, 0xFF]);
     }
 }

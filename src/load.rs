@@ -48,10 +48,15 @@ impl Writer {
         };
         let epoch = UNIX_EPOCH + Duration::from_secs(meta.build_epoch);
 
+        let description: Vec<(&str, &str)> = meta
+            .description
+            .iter()
+            .map(|(lang, text)| (lang.as_str(), text.as_str()))
+            .collect();
         let mut writer = Writer::builder(meta.database_type.clone())
             .ip_version(ip_version)
             .languages(meta.languages.clone())
-            .description(meta.description.clone())
+            .description(&description)
             .record_size(record_size_from(meta.record_size)?)
             .build_epoch(epoch)
             .build();
