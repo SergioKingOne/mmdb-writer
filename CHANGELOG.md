@@ -6,14 +6,20 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-12
+
 ### Added
 
 - Initial release: write MaxMind DB (`.mmdb`) files from `(network, value)` pairs.
-- `Writer` with `insert` (serde), `insert_value`, `insert_with`, `insert_merged`, and
-  `insert_range`.
+- `Writer` with `insert` (serde), `insert_value`, `insert_with`, `insert_merged`,
+  `insert_range`, and `get`.
 - Public `Value` data model covering every MMDB data type.
-- IPv4 and IPv6 databases, IPv4 aliasing, and reserved-network handling.
-- Automatic record sizing and pointer-based data deduplication.
+- IPv4 and IPv6 databases, IPv4 aliasing (IPv4-mapped, 6to4, Teredo), and
+  reserved-network handling with Go-writer-compatible carve-out semantics.
+- Automatic record sizing (24/28/32-bit) and pointer-based data deduplication.
 - Optional `serde` (default) and `load` features.
+- Output verified against the official Rust, Python, and Go MaxMind readers, with
+  byte-exact spec-conformance tests and a mutation-tested suite.
 
-[Unreleased]: https://github.com/SergioKingOne/mmdb-writer/commits/main
+[Unreleased]: https://github.com/SergioKingOne/mmdb-writer/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/SergioKingOne/mmdb-writer/releases/tag/v0.1.0
